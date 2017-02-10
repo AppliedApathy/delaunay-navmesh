@@ -1,0 +1,21 @@
+{
+  "name": "delaunay",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "browserify index.js -o build.js",
+    "watch": "watchify index.js -o build.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "a-star": "^0.2.0",
+    "delaunay-fast": "^1.0.1",
+    "lodash": "^4.17.4"
+  },
+  "devDependencies": {
+    "watchify": "^3.9.0"
+  }
+}
