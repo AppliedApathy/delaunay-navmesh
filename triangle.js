@@ -20,6 +20,7 @@ let triangles = {}
 function Triangle(points) {
   this.id = ++nextTriangle
   triangles[this.id] = this
+
   Object.keys(points).forEach(k => {
     const p = points[k]
     this[k] = p
@@ -41,8 +42,49 @@ Triangle.all = () => triangles
 
 Triangle.prototype.needsFix = function() {
   const {a, b, c} = this
+  if(a.obstacle == b.obstacle && b.obstacle == c.obstacle) return false
   return !(visibleFrom(a, b) && visibleFrom(b, c) && visibleFrom(c, a) &&
   visibleFrom(b, a) && visibleFrom(c, b) && visibleFrom(a, c))
+}
+
+Triangle.prototype.destroy = function() {
+  delete triangles[this.id]
+  this.points.forEach(p => p.triangles = p.triangles.filter(t => t != this))
+}
+
+Triangle.prototype.fix = function() {
+  const {a, b, c} = this
+
+  let b1 = null, b2 = null, h = null
+  if(a.obstacle == b.obstacle)
+    b1 = a, b2 = b, h = c
+  if(b.obstacle == c.obstacle)
+    b1 = b, b2 = c, h = a
+  if(c.obstacle == a.obstacle)
+    b1 = c, b2 = a, h = b
+
+  let pointToFix = (visibleFrom(h, b1) && visibleFrom(b1, h)) ? b2 : b1
+  let others = this.points.filter(p => p != pointToFix)
+  const fixedPoint = pointToFix.obstacle.points.find(p => {
+    if(others.includes(p)) return false //triangle from two points
+
+    const sideTriangles = others[0].triangles.filter(t => t.points.includes(others[1]))
+    if(sideTriangles.find(t => t.points.find(op => op.obstacle == p.obstacle)))
+      return false //already got triangle for this obstacle and other obstacle side
+
+    // if(p.triangles.find(t =>
+    //   t.points.find(p => p == others[0]) && t.points.find(p => p == others[1])))
+    //   return false //exists
+    const t = new Triangle({a: others[0], b: others[1], c: p})
+    if(t.needsFix()) {
+      t.destroy()
+      return false
+    } else {
+      return true
+    }
+  })
+  this.destroy()
+  return fixedPoint ? [new Triangle({a: others[0], b: others[1], c: fixedPoint})] : []
 }
 
 Triangle.prototype.draw = function(ctx) {
@@ -77,6 +119,11 @@ Triangle.prototype.blocked = function() {
 
 Triangle.prototype.adjSide = function(other) {
    return _.intersection(this.points, other.points)
+}
+
+Triangle.prototype.toString = function() {
+    const {id, a, b, c} = this
+    return `${id} (${a.id}, ${b.id}, ${c.id})`
 }
 
 Triangle.prototype.passableRadius = function(other) {

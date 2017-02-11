@@ -23,6 +23,11 @@ const Rect = function(props) {
   ]
 }
 
+Rect.prototype.serialize = function() {
+  const {x,y,w,h} = this
+  return {x,y,w,h}
+}
+
 Rect.prototype.draw = function(ctx) {
   //ctx.strokeRect(o.x, o.y, o.w, o.h)
   ctx.fillStyle = 'black'

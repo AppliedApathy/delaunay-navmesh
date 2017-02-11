@@ -1,3 +1,4 @@
+const _ = require('lodash')
 const Delaunay = require('delaunay-fast')
 const astar = require('a-star')
 const Rect = require('./rect.js')
@@ -5,7 +6,6 @@ const Triangle = require('./triangle.js')
 
 const u = {
     randomInt: (min, max) => Math.floor(Math.random() * (max - min)) + min,
-    flatMap: (arr, cb) => Array.prototype.concat.apply([], arr.map(cb)),
     arrow: (ctx) => (from, to) => {
       var headlen = 10;
       var angle = Math.atan2(to.y-from.y,to.x-from.x);
@@ -54,32 +54,56 @@ const Demo = {
     Triangle.reset()
     //Rect.reset()
 
-    const points = u.flatMap(this.obstacles, o => o.points.map(p => {p.point = [p.x, p.y]; return p}))
+    const points = _.flatMap(this.obstacles, o => o.points.map(p => {p.point = [p.x, p.y]; return p}))
     const indices = Delaunay.triangulate(points, 'point')
-    const mesh = []
+    let mesh = []
     indices.forEach((p, i) => {
       if((i+1) % 3 == 0 && i > 0) {
         const a = points[indices[i-2]], b = points[indices[i-1]], c = points[indices[i]]
         mesh.push(new Triangle({a, b, c}))
       }
     })
+    mesh = _.flatMap(Object.values(mesh), (t => {
+      if(!t.needsFix()) return [t]
+      console.log('fixed', t.tostring(), t)
+      const ret = t.fix()
+      console.log('to', ret.map(t => t.toString()).join(', '), ret)
+      return ret
+    }))
     return mesh
   },
 
   start: function() {
 //    this.generateObstacles()
-   this.buildNavmesh()
+    this.buildNavmesh()
     const canvas = document.getElementById('main')
+    const load = document.getElementById('load')
+    const obstacles = document.getElementById('obstacles')
+
+    const update = () => {
+      obstacles.value = JSON.stringify(this.obstacles.map(o => o.serialize()))
+      this.navmesh = this.buildNavmesh()
+      this.draw()
+    }
+
     canvas.addEventListener('click', (ev) => {
       const rect = canvas.getBoundingClientRect()
       const x = event.clientX - rect.left
       const y = event.clientY - rect.top
-        const w = u.randomInt(this.maxX/32, this.maxX/4), h = u.randomInt(this.maxY/32, this.maxY/4)
-        this.obstacles.push(new Rect({w, h, x: x - w/2, y: y - h/2}))
-        this.navmesh = this.buildNavmesh()
-        this.draw()
+      const w = u.randomInt(this.maxX/32, this.maxX/4), h = u.randomInt(this.maxY/32, this.maxY/4)
+      this.obstacles.push(new Rect({w, h, x: x - w/2, y: y - h/2}))
+      update()
     })
-    this.draw()
+
+    load.addEventListener('click', (ev) => {
+      Rect.reset()
+      this.obstacles = JSON.parse(obstacles.value).map(o => new Rect(o))
+      update()
+    })
+
+    update()
+
+    //this.draw()
   },
 }
 
@@ -90,7 +114,11 @@ window.path = function(fromId, toId, radius = 0) {
   const ret = astar({
     start: from,
     isEnd: n => n == to,
-    neighbor: n => n.adjacent().filter(t => t.passableRadius(n) > radius),
+    neighbor: n => {
+      const ret = n.adjacent().filter(t => !t.blocked() && t.passableRadius(n) > radius)
+      //console.log(`${n.id}: ${ret.map(r => r.id).join(', ')}`, n, ret)
+      return ret
+    },
     distance: (a, b) => u.d(a.center, b.center),
     heuristic: (n) => u.d(n.center, to.center),
     hash: n => ""+n.id
@@ -123,5 +151,6 @@ window.path = function(fromId, toId, radius = 0) {
     ctx.stroke()
     ctx.lineWidth = 1
   }
+
   return ret
 }
