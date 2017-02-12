@@ -23,6 +23,14 @@ const Rect = function(props) {
   ]
 }
 
+Rect.prototype.sides = function() {
+  if(!this._sides) {
+    const p = this.points
+    this._sides = [[p[0], p[1]], [p[1], p[2]], [p[2], p[3]], [p[3], p[0]]]
+  }
+  return this._sides
+}
+
 Rect.prototype.serialize = function() {
   const {x,y,w,h} = this
   return {x,y,w,h}

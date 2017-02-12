@@ -21,6 +21,7 @@ function Triangle(points) {
   this.id = ++nextTriangle
   triangles[this.id] = this
 
+  //console.log(this.id, new Error())
   Object.keys(points).forEach(k => {
     const p = points[k]
     this[k] = p
@@ -48,59 +49,46 @@ Triangle.prototype.needsFix = function() {
 }
 
 Triangle.prototype.destroy = function() {
+  triangles[this.id] = undefined
   delete triangles[this.id]
   this.points.forEach(p => p.triangles = p.triangles.filter(t => t != this))
+  console.log('destroy', this.id, triangles)
 }
 
-Triangle.prototype.fix = function() {
-  const {a, b, c} = this
+Triangle.prototype.sides = function() {
+  if(!this._sides) {
+      const {a, b, c} = this
+      this._sides = [[a, b], [b, c], [c, a]]
+  }
+  return this._sides
+}
 
-  let b1 = null, b2 = null, h = null
-  if(a.obstacle == b.obstacle)
-    b1 = a, b2 = b, h = c
-  if(b.obstacle == c.obstacle)
-    b1 = b, b2 = c, h = a
-  if(c.obstacle == a.obstacle)
-    b1 = c, b2 = a, h = b
-
-  let pointToFix = (visibleFrom(h, b1) && visibleFrom(b1, h)) ? b2 : b1
-  let others = this.points.filter(p => p != pointToFix)
-  const fixedPoint = pointToFix.obstacle.points.find(p => {
-    if(others.includes(p)) return false //triangle from two points
-
-    const sideTriangles = others[0].triangles.filter(t => t.points.includes(others[1]))
-    if(sideTriangles.find(t => t.points.find(op => op.obstacle == p.obstacle)))
-      return false //already got triangle for this obstacle and other obstacle side
-
-    // if(p.triangles.find(t =>
-    //   t.points.find(p => p == others[0]) && t.points.find(p => p == others[1])))
-    //   return false //exists
-    const t = new Triangle({a: others[0], b: others[1], c: p})
-    if(t.needsFix()) {
-      t.destroy()
-      return false
-    } else {
-      return true
+Triangle.prototype.obstacles = function() {
+    if(!this._obstacles) {
+      const {a, b, c} = this
+      this._obstacles = [a.obstacle, b.obstacle, c.obstacle]
     }
-  })
-  this.destroy()
-  return fixedPoint ? [new Triangle({a: others[0], b: others[1], c: fixedPoint})] : []
+    return this._obstacles
+}
+
+Triangle.prototype.obstacleIntersections = function() {
+  const points = {}
+  const ret = this.obstacles().map(o => o.sides().map(os => this.sides().map(ts => lineIntersection(os, ts)).filter(p => p != null)))
+  return _.flatten(_.flatten(ret))
 }
 
 Triangle.prototype.draw = function(ctx) {
   const {a, b, c} = this
-  ctx.strokeStyle = this.needsFix() ? 'red' : 'blue'
+  const needsFix = this.needsFix()
+  ctx.strokeStyle = needsFix ? 'red' : 'blue'
+  ctx.fillStyle = needsFix ? 'rgba(255, 0, 0, .3)' : 'rgba(0, 0, 255, 1)'
   ctx.beginPath()
   ctx.moveTo(a.x, a.y)
   ctx.lineTo(b.x, b.y)
   ctx.lineTo(c.x, c.y)
   ctx.stroke()
-  ctx.fillStyle = ctx.strokeStyle
   ctx.fillText(this.id, this.center.x, this.center.y)
-  if(this.needsFix()) {
-    ctx.fillStyle = 'rgba(255, 0, 0, .3)'
-    ctx.fill();
-  }
+  //ctx.fill()
 }
 
 Triangle.prototype.adjacent = function() {
@@ -146,13 +134,13 @@ Triangle.prototype.passableRadius = function(other) {
     b1 = a, b2 = b, h = c
   if(b.obstacle == c.obstacle)
     b1 = b, b2 = c, h = a
-  if(c.obstacle == a.obstacle)
+  if(c.obstacle == a.obstacle)[]
     b1 = c, b2 = a, h = b
 
   return d(h, getSpPoint(b1, b2, h))
 }
 
-//http://stackoverflow.com/a/12499474
+//http://stackoverflow.com/a/12499474[]
 function getSpPoint(A,B,C) {
     var x1=A.x, y1=A.y, x2=B.x, y2=B.y, x3=C.x, y3=C.y;
     var px = x2-x1, py = y2-y1, dAB = px*px + py*py;
@@ -160,5 +148,52 @@ function getSpPoint(A,B,C) {
     var x = x1 + u * px, y = y1 + u * py;
     return {x:x, y:y};
 }
+
+function lineIntersection(l1, l2) {
+  const ret = checkLineIntersection(l1[0].x, l1[0].y, l1[1].x, l1[1].y, l2[0].x, l2[0].y, l2[1].x, l2[1].y)
+  console.log(l1, l2, ret)
+  return (ret.onLine1 && ret.onLine2) ? ret : null
+}
+
+//http://jsfiddle.net/justin_c_rounds/Gd2S2/light/
+function checkLineIntersection(line1StartX, line1StartY, line1EndX, line1EndY, line2StartX, line2StartY, line2EndX, line2EndY) {
+  console.log(arguments)
+    // if the lines intersect, the result contains the x and y of the intersection (treating the lines as infinite) and booleans for whether line segment 1 or line segment 2 contain the point
+    var denominator, a, b, numerator1, numerator2, result = {
+        x: null,
+        y: null,
+        onLine1: false,
+        onLine2: false
+    };
+    denominator = ((line2EndY - line2StartY) * (line1EndX - line1StartX)) - ((line2EndX - line2StartX) * (line1EndY - line1StartY));
+    if (denominator == 0) {
+        return result;
+    }
+    a = line1StartY - line2StartY;
+    b = line1StartX - line2StartX;
+    numerator1 = ((line2EndX - line2StartX) * a) - ((line2EndY - line2StartY) * b);
+    numerator2 = ((line1EndX - line1StartX) * a) - ((line1EndY - line1StartY) * b);
+    a = numerator1 / denominator;
+    b = numerator2 / denominator;
+
+    // if we cast these lines infinitely in both directions, they intersect here:
+    result.x = line1StartX + (a * (line1EndX - line1StartX));
+    result.y = line1StartY + (a * (line1EndY - line1StartY));
+/*
+        // it is worth noting that this should be the same as:
+        x = line2StartX + (b * (line2EndX - line2StartX));
+        y = line2StartX + (b * (line2EndY - line2StartY));
+        */
+    // if line1 is a segment and line2 is infinite, they intersect if:
+    if (a > 0 && a < 1) {
+        result.onLine1 = true;
+    }
+    // if line2 is a segment and line1 is infinite, they intersect if:
+    if (b > 0 && b < 1) {
+        result.onLine2 = true;
+    }
+    // if line1 and line2 are segments, they intersect if both of the above are true
+    return result;
+};
 
 module.exports = Triangle

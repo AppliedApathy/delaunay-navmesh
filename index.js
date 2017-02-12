@@ -51,26 +51,37 @@ const Demo = {
   },
 
   buildNavmesh: function() {
-    Triangle.reset()
-    //Rect.reset()
+    function build(points) {
+      Triangle.reset()
+      const indices = Delaunay.triangulate(points, 'point')
+      const mesh = []
+      indices.forEach((p, i) => {
+        if((i+1) % 3 == 0 && i > 0) {
+          const a = points[indices[i-2]], b = points[indices[i-1]], c = points[indices[i]]
+          mesh.push(new Triangle({a, b, c}))
+        }
+      })
+      return mesh
+    }
 
-    const points = _.flatMap(this.obstacles, o => o.points.map(p => {p.point = [p.x, p.y]; return p}))
-    const indices = Delaunay.triangulate(points, 'point')
-    let mesh = []
-    indices.forEach((p, i) => {
-      if((i+1) % 3 == 0 && i > 0) {
-        const a = points[indices[i-2]], b = points[indices[i-1]], c = points[indices[i]]
-        mesh.push(new Triangle({a, b, c}))
-      }
-    })
-    mesh = _.flatMap(Object.values(mesh), (t => {
-      if(!t.needsFix()) return [t]
-      console.log('fixed', t.tostring(), t)
-      const ret = t.fix()
-      console.log('to', ret.map(t => t.toString()).join(', '), ret)
-      return ret
-    }))
+    const a = Object.assign
+    const points = _.flatMap(this.obstacles, o => o.points.map(p => a({}, p, {point: [p.x, p.y]})))
+    let mesh = build(points)
+    const additionalPoints = _.flatMap(mesh.filter(t => t.needsFix()), t => t.obstacleIntersections())
+      .map(p => a({}, p, {type: '_FIX', point: [p.x, p.y]}))
+    console.log('fixing: ', additionalPoints)
+    if(additionalPoints.length)
+      mesh = build([...points, ...additionalPoints])
     return mesh
+    // mesh = _.flatMap(Object.values(mesh), (t => {
+    //   if(!t.needsFix()) return [t]
+    //   console.log('fixed', t.toString(), t)
+    //   const ret = t.fix()
+    //   console.log('to', ret.map(t => t.toString()).join(', '), ret)
+    //   return ret
+    // }))
+    // console.log(mesh.map(t => t.toString()).join(', '), mesh)
+    // window.mesh = Triangle.all()
   },
 
   start: function() {
